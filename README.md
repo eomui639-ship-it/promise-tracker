@@ -122,6 +122,12 @@ node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --cnddtI
 node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --sidoName 서울특별시 --wiwName 강남구 --status 공약등록 --output data/nec-promises.csv
 ```
 
+응답이 없을 때는 `--debug`를 붙여 실제 요청 주소를 확인합니다. 인증키는 출력에서 자동으로 가려집니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --sidoName 서울특별시 --wiwName 강서구 --candidateName 진교훈 --status 공약등록 --output data/nec-promises.csv --debug
+```
+
 스크립트 내부 동작은 아래 순서입니다.
 
 1. 후보자 통합검색 API `CndaSrchService/getCndaSrchInqire`에서 후보자ID `huboid`를 찾습니다.

@@ -47,6 +47,7 @@ async function main() {
     serviceKey,
     sgId: options.sgId,
     sgTypecode: options.sgTypecode,
+    debug: options.debug === "true",
   });
 
   const candidates = options.cnddtId
@@ -57,6 +58,10 @@ async function main() {
         sgTypecode: codeInfo.sgTypecode,
         sidoName: options.sidoName,
         wiwName: options.wiwName,
+        districtName: options.districtName,
+        partyName: options.partyName,
+        candidateName: options.candidateName,
+        debug: options.debug === "true",
       });
 
   const promisesByHuboid = new Map();
@@ -67,6 +72,7 @@ async function main() {
       sgId: codeInfo.sgId,
       sgTypecode: codeInfo.sgTypecode,
       cnddtId: candidate.huboid,
+      debug: options.debug === "true",
     });
     promisesByHuboid.set(candidate.huboid, promises);
   }
@@ -108,7 +114,7 @@ function parseArgs(args) {
   return options;
 }
 
-async function resolveElectionCode({ serviceKey, sgId, sgTypecode }) {
+async function resolveElectionCode({ serviceKey, sgId, sgTypecode, debug }) {
   if (sgId && sgTypecode) {
     return { sgId, sgTypecode };
   }
@@ -117,6 +123,7 @@ async function resolveElectionCode({ serviceKey, sgId, sgTypecode }) {
     baseUrl: BASE_URLS.code,
     methodName: "getCommonSgCodeList",
     serviceKey,
+    debug,
     params: {
       sgId,
       sgTypecode,
@@ -136,7 +143,17 @@ async function resolveElectionCode({ serviceKey, sgId, sgTypecode }) {
   };
 }
 
-async function fetchCandidates({ serviceKey, sgId, sgTypecode, sidoName, wiwName }) {
+async function fetchCandidates({
+  serviceKey,
+  sgId,
+  sgTypecode,
+  sidoName,
+  wiwName,
+  districtName,
+  partyName,
+  candidateName,
+  debug,
+}) {
   const items = await callApi({
     baseUrl: BASE_URLS.candidate,
     methodName: "getCndaSrchInqire",
@@ -146,15 +163,19 @@ async function fetchCandidates({ serviceKey, sgId, sgTypecode, sidoName, wiwName
       sgTypecode,
       sdName: sidoName,
       wiwName,
+      sggName: districtName,
+      jdName: partyName,
+      name: candidateName,
       numOfRows: "1000",
       pageNo: "1",
     },
+    debug,
   });
 
   return items.map(normalizeCandidate).filter((candidate) => candidate.huboid);
 }
 
-async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId }) {
+async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId, debug }) {
   return callApi({
     baseUrl: BASE_URLS.promise,
     methodName: "getCnddtElecPrmsInfoInqire",
@@ -166,10 +187,11 @@ async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId })
       numOfRows: "100",
       pageNo: "1",
     },
+    debug,
   });
 }
 
-async function callApi({ baseUrl, methodName, serviceKey, params }) {
+async function callApi({ baseUrl, methodName, serviceKey, params, debug }) {
   const url = new URL(`${baseUrl}/${methodName}`);
   url.searchParams.set("ServiceKey", serviceKey);
   url.searchParams.set("resultType", "json");
@@ -179,6 +201,12 @@ async function callApi({ baseUrl, methodName, serviceKey, params }) {
       url.searchParams.set(key, value);
     }
   });
+
+  if (debug) {
+    const safeUrl = new URL(url.toString());
+    safeUrl.searchParams.set("ServiceKey", "REDACTED");
+    console.log(`[debug] ${methodName}: ${safeUrl.toString()}`);
+  }
 
   const response = await fetch(url);
   if (!response.ok) {
