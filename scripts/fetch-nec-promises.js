@@ -475,6 +475,8 @@ if (require.main === module) {
 module.exports = {
   buildPromiseRows,
   buildDirectCandidate,
+  fetchCandidatePromises,
+  fetchCandidates,
   normalizeCandidate,
   normalizeItems,
   parseApiPayload,

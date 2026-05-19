@@ -12,6 +12,12 @@ const elements = {
   resultsList: document.querySelector("#resultsList"),
   resultCount: document.querySelector("#resultCount"),
   detailView: document.querySelector("#detailView"),
+  liveLookupForm: document.querySelector("#liveLookupForm"),
+  liveCandidateName: document.querySelector("#liveCandidateName"),
+  liveSgId: document.querySelector("#liveSgId"),
+  liveSgTypecode: document.querySelector("#liveSgTypecode"),
+  liveCnddtId: document.querySelector("#liveCnddtId"),
+  liveLookupStatus: document.querySelector("#liveLookupStatus"),
 };
 
 const STATUS_ORDER = ["완료", "진행중", "진행 중", "지연", "지연/계획변경", "보류", "폐기", "검증필요", "확인 필요"];
@@ -203,9 +209,99 @@ function fillElectionFilter(people) {
   });
 }
 
+function refreshElectionFilter(people) {
+  const selectedValue = elements.electionFilter.value;
+  elements.electionFilter.innerHTML = '<option value="all">전체</option>';
+  fillElectionFilter(people);
+  elements.electionFilter.value = Array.from(elements.electionFilter.options).some(
+    (option) => option.value === selectedValue,
+  )
+    ? selectedValue
+    : "all";
+}
+
 function bindEvents() {
   elements.searchInput.addEventListener("input", applyFilters);
   elements.electionFilter.addEventListener("change", applyFilters);
+  elements.liveLookupForm.addEventListener("submit", handleLiveLookup);
+}
+
+async function handleLiveLookup(event) {
+  event.preventDefault();
+
+  const candidateName = elements.liveCandidateName.value.trim();
+  const sgId = elements.liveSgId.value.trim();
+  const sgTypecode = elements.liveSgTypecode.value;
+  const cnddtId = elements.liveCnddtId.value.trim();
+
+  if (!sgId || (!candidateName && !cnddtId)) {
+    setLiveLookupStatus("선거ID와 후보자명 또는 후보자ID를 입력해 주세요.", "error");
+    return;
+  }
+
+  const params = new URLSearchParams({
+    sgId,
+    sgTypecode,
+    status: "공약등록",
+  });
+
+  if (candidateName) params.set("candidateName", candidateName);
+  if (cnddtId) params.set("cnddtId", cnddtId);
+
+  const button = elements.liveLookupForm.querySelector("button");
+  button.disabled = true;
+  setLiveLookupStatus("중앙선관위에서 공약을 조회하고 있습니다.", "loading");
+
+  try {
+    const response = await fetch(`/api/nec-promises?${params.toString()}`);
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.message || "실시간 조회 서버가 아직 연결되지 않았습니다.");
+    }
+
+    if (!payload.rows.length) {
+      setLiveLookupStatus("후보자는 찾았지만 공약 데이터가 없습니다.", "error");
+      return;
+    }
+
+    mergeRows(payload.rows);
+    elements.searchInput.value = payload.rows[0].후보자명 || candidateName;
+    applyFilters();
+    selectFirstFilteredPerson();
+    setLiveLookupStatus(`공약 ${payload.rows.length}개를 불러왔습니다.`, "success");
+  } catch (error) {
+    setLiveLookupStatus(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function mergeRows(rows) {
+  const incomingPeople = groupByPerson(rows);
+  const peopleMap = new Map(state.people.map((person) => [person.key, person]));
+
+  incomingPeople.forEach((person) => {
+    peopleMap.set(person.key, person);
+  });
+
+  state.people = Array.from(peopleMap.values());
+  state.filteredPeople = state.people;
+  refreshElectionFilter(state.people);
+}
+
+function selectFirstFilteredPerson() {
+  const [firstPerson] = state.filteredPeople;
+  if (!firstPerson) return;
+
+  state.selectedPersonKey = firstPerson.key;
+  renderResults();
+  renderDetail(firstPerson);
+}
+
+function setLiveLookupStatus(message, type) {
+  elements.liveLookupStatus.textContent = message;
+  elements.liveLookupStatus.dataset.type = type;
 }
 
 function applyFilters() {
@@ -242,10 +338,10 @@ function renderResults() {
     button.type = "button";
     button.setAttribute("aria-pressed", String(person.key === state.selectedPersonKey));
     button.innerHTML = `
-      <span class="meta">${person.electionType} · ${person.role}</span>
-      <strong>${person.name}</strong>
-      <span>${person.party}</span>
-      <span>${person.region}</span>
+      <span class="meta">${escapeHtml(person.electionType)} · ${escapeHtml(person.role)}</span>
+      <strong>${escapeHtml(person.name)}</strong>
+      <span>${escapeHtml(person.party)}</span>
+      <span>${escapeHtml(person.region)}</span>
       <span class="rate-line">지난 공약 실행률 ${calculateCompletionRate(person.promises).rate}%</span>
     `;
 
@@ -277,9 +373,9 @@ function renderDetail(person) {
   elements.detailView.innerHTML = `
     <div class="detail-header">
       <div>
-        <span class="meta">${person.electionType} · ${person.role}</span>
-        <h2>${person.name}</h2>
-        <p>${person.party} · ${person.region}</p>
+        <span class="meta">${escapeHtml(person.electionType)} · ${escapeHtml(person.role)}</span>
+        <h2>${escapeHtml(person.name)}</h2>
+        <p>${escapeHtml(person.party)} · ${escapeHtml(person.region)}</p>
       </div>
       <div class="completion-card">
         <span>지난 공약 실행률</span>
@@ -317,25 +413,38 @@ function renderPromiseSection(title, promises) {
 
 function renderPromise(promise) {
   const evidenceMarkup = promise.evidenceUrl.startsWith("http")
-    ? `<a href="${promise.evidenceUrl}" target="_blank" rel="noreferrer">근거 보기</a>`
-    : `<span>${promise.evidenceUrl || "근거 없음"}</span>`;
+    ? `<a href="${escapeAttribute(promise.evidenceUrl)}" target="_blank" rel="noreferrer">근거 보기</a>`
+    : `<span>${escapeHtml(promise.evidenceUrl || "근거 없음")}</span>`;
 
   return `
     <article class="promise-card">
       <div class="promise-top">
         <div>
-          <span class="promise-election">${promise.electionName}</span>
-          <h4>${promise.title}</h4>
+          <span class="promise-election">${escapeHtml(promise.electionName)}</span>
+          <h4>${escapeHtml(promise.title)}</h4>
         </div>
-        <span class="status ${getStatusClass(promise.status)}">${promise.status}</span>
+        <span class="status ${getStatusClass(promise.status)}">${escapeHtml(promise.status)}</span>
       </div>
-      <p class="memo">${promise.memo || "메모 없음"}</p>
+      <p class="memo">${escapeHtml(promise.memo || "메모 없음")}</p>
       <div class="promise-footer">
-        <span>마지막 확인일: ${promise.checkedAt}</span>
+        <span>마지막 확인일: ${escapeHtml(promise.checkedAt)}</span>
         ${evidenceMarkup}
       </div>
     </article>
   `;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
 function getPromisesByCategory(promises, category) {
