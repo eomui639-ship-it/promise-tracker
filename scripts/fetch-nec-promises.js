@@ -49,13 +49,15 @@ async function main() {
     sgTypecode: options.sgTypecode,
   });
 
-  const candidates = await fetchCandidates({
-    serviceKey,
-    sgId: codeInfo.sgId,
-    sgTypecode: codeInfo.sgTypecode,
-    sidoName: options.sidoName,
-    wiwName: options.wiwName,
-  });
+  const candidates = options.cnddtId
+    ? [buildDirectCandidate(options)]
+    : await fetchCandidates({
+        serviceKey,
+        sgId: codeInfo.sgId,
+        sgTypecode: codeInfo.sgTypecode,
+        sidoName: options.sidoName,
+        wiwName: options.wiwName,
+      });
 
   const promisesByHuboid = new Map();
   for (const candidate of candidates) {
@@ -64,7 +66,7 @@ async function main() {
       serviceKey,
       sgId: codeInfo.sgId,
       sgTypecode: codeInfo.sgTypecode,
-      huboid: candidate.huboid,
+      cnddtId: candidate.huboid,
     });
     promisesByHuboid.set(candidate.huboid, promises);
   }
@@ -152,7 +154,7 @@ async function fetchCandidates({ serviceKey, sgId, sgTypecode, sidoName, wiwName
   return items.map(normalizeCandidate).filter((candidate) => candidate.huboid);
 }
 
-async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, huboid }) {
+async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId }) {
   return callApi({
     baseUrl: BASE_URLS.promise,
     methodName: "getCnddtElecPrmsInfoInqire",
@@ -160,7 +162,7 @@ async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, huboid }) 
     params: {
       sgId,
       sgTypecode,
-      huboid,
+      cnddtId,
       numOfRows: "100",
       pageNo: "1",
     },
@@ -169,7 +171,7 @@ async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, huboid }) 
 
 async function callApi({ baseUrl, methodName, serviceKey, params }) {
   const url = new URL(`${baseUrl}/${methodName}`);
-  url.searchParams.set("serviceKey", serviceKey);
+  url.searchParams.set("ServiceKey", serviceKey);
   url.searchParams.set("resultType", "json");
 
   Object.entries(params).forEach(([key, value]) => {
@@ -204,12 +206,23 @@ function parseApiPayload(text) {
 
 function normalizeCandidate(item) {
   return {
-    huboid: readApiField(item, ["huboid", "HUBOID"]),
+    huboid: readApiField(item, ["huboid", "HUBOID", "cnddtId"]),
     name: readApiField(item, ["name", "cnddtNm", "huboName", "candidateName"]),
     partyName: readApiField(item, ["jdName", "partyName", "partyNm"]),
     sidoName: readApiField(item, ["sidoName", "sdName", "cityName"]),
     wiwName: readApiField(item, ["wiwName", "sggName", "gusigunName"]),
     sdName: readApiField(item, ["sdName", "sggSdName", "constituencyName"]),
+  };
+}
+
+function buildDirectCandidate(options) {
+  return {
+    huboid: options.cnddtId,
+    name: options.candidateName || "",
+    partyName: options.partyName || "",
+    sidoName: options.sidoName || "",
+    wiwName: options.wiwName || "",
+    sdName: options.districtName || "",
   };
 }
 
@@ -315,6 +328,7 @@ if (require.main === module) {
 
 module.exports = {
   buildPromiseRows,
+  buildDirectCandidate,
   normalizeItems,
   toCsv,
 };

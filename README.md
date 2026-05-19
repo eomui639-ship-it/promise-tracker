@@ -90,6 +90,18 @@ $env:NEC_SERVICE_KEY="여기에_공공데이터포털_인증키"
 node scripts/fetch-nec-promises.js --sgId 20260408 --sgTypecode 4 --status 공약등록 --output data/nec-promises.csv
 ```
 
+후보자ID를 알고 있을 때는 후보자 목록 API를 건너뛰고 공약 API만 직접 테스트할 수 있습니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 20231011 --sgTypecode 4 --cnddtId 1000000000 --status 공약등록 --output data/nec-promises.csv
+```
+
+후보자명과 지역명을 같이 저장하고 싶으면 아래처럼 추가합니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 20231011 --sgTypecode 4 --cnddtId 1000000000 --candidateName 홍길동 --partyName 예시당 --sidoName 서울특별시 --wiwName 강남구 --districtName 강남구청장선거 --status 공약등록 --output data/nec-promises.csv
+```
+
 당선 후 추적할 공약은 `추적대상` 상태로 저장합니다.
 
 ```powershell
