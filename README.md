@@ -116,6 +116,18 @@ node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --cnddtI
 
 수집 스크립트는 선관위 공약 API의 `prmsOrd1~10`, `prmsRealmName1~10`, `prmsTitle1~10`, `prmsCont1~10`을 한 공약당 한 줄로 변환합니다.
 
+후보자ID를 모를 때는 후보자 통합검색 API를 통해 후보자ID를 먼저 수집합니다. 이때 `--sidoName`, `--wiwName`을 넣으면 범위를 줄일 수 있습니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --sidoName 서울특별시 --wiwName 강남구 --status 공약등록 --output data/nec-promises.csv
+```
+
+스크립트 내부 동작은 아래 순서입니다.
+
+1. 후보자 통합검색 API `CndaSrchService/getCndaSrchInqire`에서 후보자ID `huboid`를 찾습니다.
+2. 선거공약 API `ElecPrmsInfoInqireService/getCnddtElecPrmsInfoInqire`에 `cnddtId=huboid`로 조회합니다.
+3. 공약 1~10번을 세로형 CSV로 저장합니다.
+
 주의:
 
 - `cnddtId`는 공공데이터포털 샘플값이 아니라 실제 후보자ID를 넣어야 합니다.

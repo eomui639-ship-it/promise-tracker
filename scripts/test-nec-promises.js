@@ -4,6 +4,7 @@ const {
   toCsv,
   normalizeItems,
   buildDirectCandidate,
+  normalizeCandidate,
 } = require("./fetch-nec-promises");
 
 function testBuildPromiseRows() {
@@ -102,9 +103,28 @@ function testBuildDirectCandidate() {
   assert.strictEqual(candidate.sdName, "강남구청장선거");
 }
 
+function testNormalizeCandidateFromSearchApi() {
+  const candidate = normalizeCandidate({
+    huboid: "1234567890",
+    name: "김후보",
+    jdName: "예시당",
+    sdName: "서울특별시",
+    wiwName: "강남구",
+    sggName: "강남구청장선거",
+  });
+
+  assert.strictEqual(candidate.huboid, "1234567890");
+  assert.strictEqual(candidate.name, "김후보");
+  assert.strictEqual(candidate.partyName, "예시당");
+  assert.strictEqual(candidate.sidoName, "서울특별시");
+  assert.strictEqual(candidate.wiwName, "강남구");
+  assert.strictEqual(candidate.sdName, "강남구청장선거");
+}
+
 testBuildPromiseRows();
 testToCsvEscapesCommasAndQuotes();
 testNormalizeItems();
 testBuildDirectCandidate();
+testNormalizeCandidateFromSearchApi();
 
 console.log("NEC promise import tests passed");

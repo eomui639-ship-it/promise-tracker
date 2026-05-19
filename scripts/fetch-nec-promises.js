@@ -3,7 +3,7 @@ const path = require("path");
 
 const BASE_URLS = {
   code: "https://apis.data.go.kr/9760000/CommonCodeService",
-  candidate: "https://apis.data.go.kr/9760000/PofelcddInfoInqireService",
+  candidate: "https://apis.data.go.kr/9760000/CndaSrchService",
   promise: "https://apis.data.go.kr/9760000/ElecPrmsInfoInqireService",
 };
 
@@ -139,12 +139,12 @@ async function resolveElectionCode({ serviceKey, sgId, sgTypecode }) {
 async function fetchCandidates({ serviceKey, sgId, sgTypecode, sidoName, wiwName }) {
   const items = await callApi({
     baseUrl: BASE_URLS.candidate,
-    methodName: "getPofelcddRegistSttusInfoInqire",
+    methodName: "getCndaSrchInqire",
     serviceKey,
     params: {
       sgId,
       sgTypecode,
-      sidoName,
+      sdName: sidoName,
       wiwName,
       numOfRows: "1000",
       pageNo: "1",
@@ -209,9 +209,9 @@ function normalizeCandidate(item) {
     huboid: readApiField(item, ["huboid", "HUBOID", "cnddtId"]),
     name: readApiField(item, ["name", "cnddtNm", "huboName", "candidateName"]),
     partyName: readApiField(item, ["jdName", "partyName", "partyNm"]),
-    sidoName: readApiField(item, ["sidoName", "sdName", "cityName"]),
+    sidoName: readApiField(item, ["sdName", "sidoName", "cityName"]),
     wiwName: readApiField(item, ["wiwName", "sggName", "gusigunName"]),
-    sdName: readApiField(item, ["sdName", "sggSdName", "constituencyName"]),
+    sdName: readApiField(item, ["sggName", "sdName", "sggSdName", "constituencyName"]),
   };
 }
 
@@ -329,6 +329,7 @@ if (require.main === module) {
 module.exports = {
   buildPromiseRows,
   buildDirectCandidate,
+  normalizeCandidate,
   normalizeItems,
   toCsv,
 };
