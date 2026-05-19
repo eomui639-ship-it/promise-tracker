@@ -69,9 +69,11 @@
             <input id="liveCnddtId" type="text" placeholder="선택" />
           </label>
 
+          <button class="lookup-button secondary" id="candidateSearchButton" type="button">후보 찾기</button>
           <button class="lookup-button" type="submit">공약 가져오기</button>
         </form>
 
+        <div id="candidateResults" class="candidate-results" aria-live="polite"></div>
         <p id="liveLookupStatus" class="lookup-status">Vercel API와 환경변수 설정 후 사용할 수 있습니다.</p>
       </section>
 

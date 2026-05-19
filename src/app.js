@@ -17,6 +17,8 @@ const elements = {
   liveSgId: document.querySelector("#liveSgId"),
   liveSgTypecode: document.querySelector("#liveSgTypecode"),
   liveCnddtId: document.querySelector("#liveCnddtId"),
+  candidateSearchButton: document.querySelector("#candidateSearchButton"),
+  candidateResults: document.querySelector("#candidateResults"),
   liveLookupStatus: document.querySelector("#liveLookupStatus"),
 };
 
@@ -224,6 +226,86 @@ function bindEvents() {
   elements.searchInput.addEventListener("input", applyFilters);
   elements.electionFilter.addEventListener("change", applyFilters);
   elements.liveLookupForm.addEventListener("submit", handleLiveLookup);
+  elements.candidateSearchButton.addEventListener("click", handleCandidateSearch);
+}
+
+async function handleCandidateSearch() {
+  const candidateName = elements.liveCandidateName.value.trim();
+  const sgId = elements.liveSgId.value.trim();
+  const sgTypecode = elements.liveSgTypecode.value;
+
+  if (!candidateName) {
+    setLiveLookupStatus("후보자명을 먼저 입력해 주세요.", "error");
+    return;
+  }
+
+  const params = new URLSearchParams({ candidateName });
+  if (sgId) params.set("sgId", sgId);
+  if (sgTypecode) params.set("sgTypecode", sgTypecode);
+
+  elements.candidateSearchButton.disabled = true;
+  elements.candidateResults.innerHTML = "";
+  setLiveLookupStatus("후보자 목록을 조회하고 있습니다.", "loading");
+
+  try {
+    const response = await fetch(`/api/nec-candidates?${params.toString()}`);
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.message || "후보자 조회 서버가 아직 연결되지 않았습니다.");
+    }
+
+    renderCandidateResults(payload.candidates || []);
+    setLiveLookupStatus(`후보자 ${payload.count || 0}명을 찾았습니다.`, "success");
+  } catch (error) {
+    setLiveLookupStatus(error.message, "error");
+  } finally {
+    elements.candidateSearchButton.disabled = false;
+  }
+}
+
+function renderCandidateResults(candidates) {
+  if (!candidates.length) {
+    elements.candidateResults.innerHTML = '<p class="empty-message">후보자 검색 결과가 없습니다.</p>';
+    return;
+  }
+
+  elements.candidateResults.innerHTML = candidates.map(renderCandidateOption).join("");
+
+  elements.candidateResults.querySelectorAll(".candidate-option").forEach((button) => {
+    button.addEventListener("click", () => {
+      elements.liveCandidateName.value = button.dataset.name || "";
+      elements.liveCnddtId.value = button.dataset.huboid || "";
+      setLiveLookupStatus(`${button.dataset.name} 후보자를 선택했습니다. 공약을 조회합니다.`, "loading");
+      elements.liveLookupForm.requestSubmit();
+    });
+  });
+}
+
+function renderCandidateOption(candidate) {
+  const meta = [
+    candidate.partyName,
+    candidate.sidoName,
+    candidate.wiwName,
+    candidate.sdName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return `
+    <button
+      class="candidate-option"
+      type="button"
+      data-huboid="${escapeAttribute(candidate.huboid)}"
+      data-name="${escapeAttribute(candidate.name)}"
+    >
+      <span>
+        <strong>${escapeHtml(candidate.name || "이름 없음")}</strong>
+        ${escapeHtml(meta || "지역 정보 없음")}
+      </span>
+      <span class="candidate-id">${escapeHtml(candidate.huboid)}</span>
+    </button>
+  `;
 }
 
 async function handleLiveLookup(event) {

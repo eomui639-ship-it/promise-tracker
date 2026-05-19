@@ -90,7 +90,7 @@ select {
 
 .live-form {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 112px 128px 112px auto;
+  grid-template-columns: minmax(150px, 1fr) 112px 128px 112px auto auto;
   gap: 10px;
   align-items: end;
 }
@@ -114,6 +114,52 @@ select {
 .lookup-button:disabled {
   cursor: progress;
   opacity: 0.7;
+}
+
+.lookup-button.secondary {
+  border: 1px solid var(--primary);
+  background: var(--surface);
+  color: var(--primary-dark);
+}
+
+.candidate-results {
+  grid-column: 2;
+  display: grid;
+  gap: 8px;
+}
+
+.candidate-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate-option:hover {
+  border-color: var(--primary);
+  background: var(--surface-soft);
+}
+
+.candidate-option strong {
+  display: block;
+}
+
+.candidate-option span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.candidate-id {
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .lookup-status {
@@ -432,6 +478,10 @@ select {
   }
 
   .lookup-status {
+    grid-column: auto;
+  }
+
+  .candidate-results {
     grid-column: auto;
   }
 
