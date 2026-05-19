@@ -316,6 +316,18 @@ select {
   background: var(--progress);
 }
 
+.status.delay {
+  background: #a15c00;
+}
+
+.status.hold {
+  background: #6b5b95;
+}
+
+.status.discarded {
+  background: #7f1d1d;
+}
+
 .status.missed {
   background: var(--missed);
 }

@@ -14,6 +14,8 @@ const elements = {
   detailView: document.querySelector("#detailView"),
 };
 
+const STATUS_ORDER = ["완료", "진행중", "진행 중", "지연", "지연/계획변경", "보류", "폐기", "검증필요", "확인 필요"];
+
 init();
 
 async function init() {
@@ -41,8 +43,8 @@ async function loadCsv(url) {
 }
 
 function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const headers = splitCsvLine(lines[0]);
+  const lines = text.trim().replace(/^\uFEFF/, "").split(/\r?\n/);
+  const headers = splitCsvLine(lines[0]).map((header) => header.replace(/^\uFEFF/, ""));
 
   return lines.slice(1).map((line) => {
     const values = splitCsvLine(line);
@@ -83,32 +85,56 @@ function groupByPerson(rows) {
   const peopleMap = new Map();
 
   rows.forEach((row) => {
-    const key = [row.선거종류, row.직책, row.이름, row.지역].join("|");
+    const electionType = readField(row, ["선거구분", "선거종류"]);
+    const role = readField(row, ["직책"]);
+    const name = readField(row, ["국회의원", "이름"]);
+    const party = readField(row, ["정당"]);
+    const region = readField(row, ["선거구", "지역"]);
+    const key = [electionType, role, name, region].join("|");
 
     if (!peopleMap.has(key)) {
       peopleMap.set(key, {
         key,
-        electionType: row.선거종류,
-        role: row.직책,
-        name: row.이름,
-        party: row.정당,
-        region: row.지역,
+        electionType,
+        role,
+        name,
+        party,
+        region,
         promises: [],
       });
     }
 
     peopleMap.get(key).promises.push({
-      category: row.공약구분 || "지난공약",
-      electionName: row.선거명 || row.선거종류,
-      title: row.공약명,
-      status: row.상태,
-      evidenceUrl: row.근거링크,
-      checkedAt: row.마지막확인일,
-      memo: row.메모,
+      category: readField(row, ["공약구분"]) || "지난공약",
+      electionName: readField(row, ["선거명"]) || electionType,
+      title: readField(row, ["공약내용", "공약명"]),
+      status: normalizeStatus(readField(row, ["이행상태", "상태"])),
+      evidenceUrl: readField(row, ["근거링크"]),
+      checkedAt: readField(row, ["확인일", "마지막확인일"]),
+      memo: readField(row, ["비고", "메모"]),
     });
   });
 
   return Array.from(peopleMap.values());
+}
+
+function readField(row, names) {
+  const key = names.find((name) => row[name] !== undefined);
+  return key ? row[key] : "";
+}
+
+function normalizeStatus(status) {
+  const trimmedStatus = status.trim();
+
+  if (trimmedStatus === "진행 중") {
+    return "진행중";
+  }
+
+  if (trimmedStatus === "확인 필요") {
+    return "검증필요";
+  }
+
+  return trimmedStatus;
 }
 
 function fillElectionFilter(people) {
@@ -278,7 +304,8 @@ function countStatuses(promises) {
 }
 
 function renderStatusSummary(statusCounts) {
-  const statuses = ["완료", "진행 중", "미이행", "확인 필요"];
+  const extraStatuses = Object.keys(statusCounts).filter((status) => !STATUS_ORDER.includes(status));
+  const statuses = [...STATUS_ORDER, ...extraStatuses].filter((status) => statusCounts[status] > 0);
 
   return statuses
     .map((status) => `<span><strong>${statusCounts[status] || 0}</strong>${status}</span>`)
@@ -288,8 +315,14 @@ function renderStatusSummary(statusCounts) {
 function getStatusClass(status) {
   const classMap = {
     완료: "done",
+    진행중: "progress",
     "진행 중": "progress",
+    지연: "delay",
+    "지연/계획변경": "delay",
+    보류: "hold",
+    폐기: "discarded",
     미이행: "missed",
+    검증필요: "unknown",
     "확인 필요": "unknown",
   };
 
