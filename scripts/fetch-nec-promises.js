@@ -73,6 +73,16 @@ async function main() {
     });
   }
 
+  if (!candidates.length) {
+    throw new Error(
+      [
+        "후보자 통합검색 API에서 후보자를 찾지 못했습니다.",
+        "공공데이터포털 미리보기에서 후보자명만 넣어 같은 결과인지 확인해 주세요.",
+        "후보자가 미리보기에는 나오면 해당 후보자ID(huboid)를 --cnddtId 값으로 직접 넣어 다시 실행하세요.",
+      ].join("\n"),
+    );
+  }
+
   const promisesByHuboid = new Map();
   for (const candidate of candidates) {
     if (!candidate.huboid) continue;
