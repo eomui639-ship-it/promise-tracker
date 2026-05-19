@@ -74,6 +74,38 @@ CSV 첫 줄은 반드시 아래처럼 유지해야 합니다.
 - 법안은 국회 의안·발의법률안 자료, 예산은 정부·지자체 예산자료, 사업 추진은 부처·지자체 보도자료를 근거로 확인합니다.
 - 이 CSV는 전체 국회의원 전수 완성본이 아니라 앱 DB 설계용 시드 데이터와 검증 방식 예시입니다.
 
+## 중앙선관위 공약 API 수집
+
+중앙선관위 API 인증키는 코드나 GitHub에 저장하지 않습니다.
+
+PowerShell에서 실행할 때만 아래처럼 환경변수로 넣습니다.
+
+```powershell
+$env:NEC_SERVICE_KEY="여기에_공공데이터포털_인증키"
+```
+
+선거 전 후보자 공약은 `공약등록` 상태로 저장합니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 20260408 --sgTypecode 4 --status 공약등록 --output data/nec-promises.csv
+```
+
+당선 후 추적할 공약은 `추적대상` 상태로 저장합니다.
+
+```powershell
+node scripts/fetch-nec-promises.js --sgId 20260408 --sgTypecode 4 --status 추적대상 --output data/nec-promises.csv
+```
+
+출력 CSV 형식은 아래와 같습니다.
+
+```csv
+선거구분,선거종류코드,후보자ID,후보자명,정당명,시도명,구시군명,선거구명,공약순번,공약분야,공약명,공약내용,상태,자료출처,확인일,검증메모
+```
+
+수집 스크립트는 선관위 공약 API의 `prmsOrd1~10`, `prmsRealmName1~10`, `prmsTitle1~10`, `prmsCont1~10`을 한 공약당 한 줄로 변환합니다.
+
+주의: `sgId`, `sgTypecode`, 후보자 API의 실제 응답 필드는 선거 종류와 API 환경에 따라 달라질 수 있습니다. 처음에는 특정 선거구나 소수 후보로 테스트한 뒤 전체 수집으로 넓히는 것이 좋습니다.
+
 ## 보안 원칙
 
 이 앱에는 비밀번호, API Key, 고객 개인정보를 저장하지 않습니다.

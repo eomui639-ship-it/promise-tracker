@@ -1,0 +1,37 @@
+# 중앙선관위 공약 API 수집 설계
+
+## 결론
+
+중앙선관위 공약 API 수집은 별도 Node.js 스크립트로 만든다. 인증키는 코드와 GitHub에 저장하지 않고 실행 시 `NEC_SERVICE_KEY` 환경변수로만 받는다.
+
+## 목표
+
+- 코드정보 API에서 선거 ID와 선거종류 코드를 확인한다.
+- 후보자 정보 API에서 후보자 ID를 수집한다.
+- 선거공약 정보 API의 `getCnddtElecPrmsInfoInqire` 결과를 세로형 CSV로 변환한다.
+- `prmsOrd1~10`, `prmsRealmName1~10`, `prmsTitle1~10`, `prmsCont1~10`을 한 공약당 한 줄로 저장한다.
+
+## 출력 CSV
+
+```csv
+선거구분,선거종류코드,후보자ID,후보자명,정당명,시도명,구시군명,선거구명,공약순번,공약분야,공약명,공약내용,상태,자료출처,확인일,검증메모
+```
+
+## 상태값
+
+- 선거 전 후보자 공약: `공약등록`
+- 당선 후 추적 대상 공약: `추적대상`
+
+상태값은 실행 옵션 `--status`로 선택한다.
+
+## 파일 구조
+
+- `scripts/fetch-nec-promises.js`: API 호출, 응답 정규화, CSV 저장
+- `scripts/test-nec-promises.js`: API 없이 변환 로직 검증
+- `data/nec-promises.csv`: 수집 결과 기본 출력 파일
+
+## 보안 원칙
+
+- 인증키는 저장하지 않는다.
+- README에도 실제 인증키를 쓰지 않는다.
+- GitHub에는 수집 스크립트와 빈 사용법만 올린다.
