@@ -1,4 +1,4 @@
-const DATA_URL = "./data/promises.csv";
+const DATA_URLS = ["./data/promises.csv", "./data/nec-promises.csv"];
 
 const state = {
   people: [],
@@ -20,7 +20,8 @@ init();
 
 async function init() {
   try {
-    const rows = await loadCsv(DATA_URL);
+    const rowGroups = await Promise.all(DATA_URLS.map(loadCsvIfExists));
+    const rows = rowGroups.flat();
     state.people = groupByPerson(rows);
     state.filteredPeople = state.people;
     fillElectionFilter(state.people);
@@ -42,12 +43,19 @@ async function loadCsv(url) {
   return parseCsv(text);
 }
 
-function parseCsv(text) {
-  const lines = text.trim().replace(/^\uFEFF/, "").split(/\r?\n/);
-  const headers = splitCsvLine(lines[0]).map((header) => header.replace(/^\uFEFF/, ""));
+async function loadCsvIfExists(url) {
+  try {
+    return await loadCsv(url);
+  } catch (error) {
+    return [];
+  }
+}
 
-  return lines.slice(1).map((line) => {
-    const values = splitCsvLine(line);
+function parseCsv(text) {
+  const rows = splitCsvRows(text.trim().replace(/^\uFEFF/, ""));
+  const headers = rows[0].map((header) => header.replace(/^\uFEFF/, ""));
+
+  return rows.slice(1).map((values) => {
     return headers.reduce((row, header, index) => {
       row[header] = values[index] || "";
       return row;
@@ -55,14 +63,15 @@ function parseCsv(text) {
   });
 }
 
-function splitCsvLine(line) {
-  const result = [];
+function splitCsvRows(text) {
+  const rows = [];
+  let row = [];
   let current = "";
   let inQuotes = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const nextChar = line[index + 1];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
 
     if (char === '"' && nextChar === '"') {
       current += '"';
@@ -70,15 +79,27 @@ function splitCsvLine(line) {
     } else if (char === '"') {
       inQuotes = !inQuotes;
     } else if (char === "," && !inQuotes) {
-      result.push(current.trim());
+      row.push(current.trim());
+      current = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+      row.push(current.trim());
+      rows.push(row);
+      row = [];
       current = "";
     } else {
       current += char;
     }
   }
 
-  result.push(current.trim());
-  return result;
+  if (current || row.length) {
+    row.push(current.trim());
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function groupByPerson(rows) {
@@ -86,10 +107,10 @@ function groupByPerson(rows) {
 
   rows.forEach((row) => {
     const electionType = readField(row, ["선거구분", "선거종류"]);
-    const role = readField(row, ["직책"]);
-    const name = readField(row, ["국회의원", "이름"]);
-    const party = readField(row, ["정당"]);
-    const region = readField(row, ["선거구", "지역"]);
+    const role = readField(row, ["직책"]) || inferRole(row);
+    const name = readField(row, ["국회의원", "이름", "후보자명"]);
+    const party = readField(row, ["정당", "정당명"]);
+    const region = readField(row, ["선거구", "지역", "선거구명", "구시군명"]);
     const key = [electionType, role, name, region].join("|");
 
     if (!peopleMap.has(key)) {
@@ -105,17 +126,51 @@ function groupByPerson(rows) {
     }
 
     peopleMap.get(key).promises.push({
-      category: readField(row, ["공약구분"]) || "지난공약",
-      electionName: readField(row, ["선거명"]) || electionType,
-      title: readField(row, ["공약내용", "공약명"]),
+      category: normalizePromiseCategory(row),
+      electionName: readField(row, ["선거명"]) || buildElectionName(row, electionType),
+      title: readField(row, ["공약명", "공약내용"]),
       status: normalizeStatus(readField(row, ["이행상태", "상태"])),
-      evidenceUrl: readField(row, ["근거링크"]),
+      evidenceUrl: readField(row, ["근거링크", "자료출처"]),
       checkedAt: readField(row, ["확인일", "마지막확인일"]),
-      memo: readField(row, ["비고", "메모"]),
+      memo: readField(row, ["비고", "메모", "검증메모", "공약내용"]),
     });
   });
 
   return Array.from(peopleMap.values());
+}
+
+function inferRole(row) {
+  const electionTypeCode = readField(row, ["선거종류코드"]);
+
+  if (electionTypeCode === "4") {
+    return "구청장 후보";
+  }
+
+  if (electionTypeCode === "3") {
+    return "시장·도지사 후보";
+  }
+
+  if (electionTypeCode === "11") {
+    return "교육감 후보";
+  }
+
+  return "후보자";
+}
+
+function normalizePromiseCategory(row) {
+  const category = readField(row, ["공약구분"]);
+  if (category) return category;
+
+  if (readField(row, ["후보자ID", "공약순번"])) {
+    return "이번공약";
+  }
+
+  return "지난공약";
+}
+
+function buildElectionName(row, electionType) {
+  const typeCode = readField(row, ["선거종류코드"]);
+  return typeCode ? `${electionType} · 선거종류 ${typeCode}` : electionType;
 }
 
 function readField(row, names) {
@@ -261,6 +316,10 @@ function renderPromiseSection(title, promises) {
 }
 
 function renderPromise(promise) {
+  const evidenceMarkup = promise.evidenceUrl.startsWith("http")
+    ? `<a href="${promise.evidenceUrl}" target="_blank" rel="noreferrer">근거 보기</a>`
+    : `<span>${promise.evidenceUrl || "근거 없음"}</span>`;
+
   return `
     <article class="promise-card">
       <div class="promise-top">
@@ -273,7 +332,7 @@ function renderPromise(promise) {
       <p class="memo">${promise.memo || "메모 없음"}</p>
       <div class="promise-footer">
         <span>마지막 확인일: ${promise.checkedAt}</span>
-        <a href="${promise.evidenceUrl}" target="_blank" rel="noreferrer">근거 보기</a>
+        ${evidenceMarkup}
       </div>
     </article>
   `;
