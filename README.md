@@ -116,10 +116,10 @@ node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --cnddtI
 
 수집 스크립트는 선관위 공약 API의 `prmsOrd1~10`, `prmsRealmName1~10`, `prmsTitle1~10`, `prmsCont1~10`을 한 공약당 한 줄로 변환합니다.
 
-후보자ID를 모를 때는 후보자 통합검색 API를 통해 후보자ID를 먼저 수집합니다. 이때 `--sidoName`, `--wiwName`을 넣으면 범위를 줄일 수 있습니다.
+후보자ID를 모를 때는 후보자 통합검색 API를 통해 후보자ID를 먼저 수집합니다. 후보자 통합검색 API는 후보자명 `name`이 필수입니다. `--sidoName`, `--wiwName`은 API 요청에는 직접 보내지 않고, 검색 결과를 앱 안에서 좁히는 데 사용합니다.
 
 ```powershell
-node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --sidoName 서울특별시 --wiwName 강남구 --status 공약등록 --output data/nec-promises.csv
+node scripts/fetch-nec-promises.js --sgId 실제선거ID --sgTypecode 4 --candidateName 홍길동 --sidoName 서울특별시 --wiwName 강남구 --status 공약등록 --output data/nec-promises.csv
 ```
 
 응답이 없을 때는 `--debug`를 붙여 실제 요청 주소를 확인합니다. 인증키는 출력에서 자동으로 가려집니다.

@@ -64,6 +64,15 @@ async function main() {
         debug: options.debug === "true",
       });
 
+  if (options.debug === "true") {
+    console.log(`[debug] 후보자 검색 결과: ${candidates.length}명`);
+    candidates.forEach((candidate) => {
+      console.log(
+        `[debug] 후보자: ${candidate.name || "-"} / ${candidate.partyName || "-"} / ${candidate.sidoName || "-"} / ${candidate.wiwName || "-"} / ${candidate.sdName || "-"} / huboid=${candidate.huboid}`,
+      );
+    });
+  }
+
   const promisesByHuboid = new Map();
   for (const candidate of candidates) {
     if (!candidate.huboid) continue;
@@ -154,17 +163,15 @@ async function fetchCandidates({
   candidateName,
   debug,
 }) {
+  if (!candidateName) {
+    throw new Error("후보자 통합검색은 후보자명이 필수입니다. --candidateName 값을 넣어 주세요.");
+  }
+
   const items = await callApi({
     baseUrl: BASE_URLS.candidate,
     methodName: "getCndaSrchInqire",
     serviceKey,
     params: {
-      sgId,
-      sgTypecode,
-      sdName: sidoName,
-      wiwName,
-      sggName: districtName,
-      jdName: partyName,
       name: candidateName,
       numOfRows: "1000",
       pageNo: "1",
@@ -172,7 +179,19 @@ async function fetchCandidates({
     debug,
   });
 
-  return items.map(normalizeCandidate).filter((candidate) => candidate.huboid);
+  return items
+    .map(normalizeCandidate)
+    .filter((candidate) => candidate.huboid)
+    .filter((candidate) =>
+      matchesCandidateFilters(candidate, {
+        sgId,
+        sgTypecode,
+        sidoName,
+        wiwName,
+        districtName,
+        partyName,
+      }),
+    );
 }
 
 async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId, debug }) {
@@ -188,10 +207,11 @@ async function fetchCandidatePromises({ serviceKey, sgId, sgTypecode, cnddtId, d
       pageNo: "1",
     },
     debug,
+    emptyOnNoData: true,
   });
 }
 
-async function callApi({ baseUrl, methodName, serviceKey, params, debug }) {
+async function callApi({ baseUrl, methodName, serviceKey, params, debug, emptyOnNoData = false }) {
   const url = new URL(`${baseUrl}/${methodName}`);
   url.searchParams.set("ServiceKey", serviceKey);
   url.searchParams.set("resultType", "json");
@@ -217,6 +237,10 @@ async function callApi({ baseUrl, methodName, serviceKey, params, debug }) {
   const payload = parseApiPayload(text);
   const resultCode = readApiField(payload, ["response.header.resultCode", "header.resultCode"]);
   if (resultCode && resultCode !== "00" && resultCode !== "INFO-00") {
+    if (emptyOnNoData && resultCode === "INFO-03") {
+      return [];
+    }
+
     const message = readApiField(payload, ["response.header.resultMsg", "header.resultMsg"]) || "알 수 없는 API 오류";
     throw new Error(`${methodName} 오류: ${resultCode} ${message}`);
   }
@@ -235,6 +259,8 @@ function parseApiPayload(text) {
 function normalizeCandidate(item) {
   return {
     huboid: readApiField(item, ["huboid", "HUBOID", "cnddtId"]),
+    sgId: readApiField(item, ["sgId", "SG_ID"]),
+    sgTypecode: readApiField(item, ["sgTypecode", "sgTypeCode", "SG_TYPECODE"]),
     name: readApiField(item, ["name", "cnddtNm", "huboName", "candidateName"]),
     partyName: readApiField(item, ["jdName", "partyName", "partyNm"]),
     sidoName: readApiField(item, ["sdName", "sidoName", "cityName"]),
@@ -243,9 +269,36 @@ function normalizeCandidate(item) {
   };
 }
 
+function matchesCandidateFilters(candidate, filters) {
+  const exactFilters = [
+    ["sgId", filters.sgId],
+    ["sgTypecode", filters.sgTypecode],
+  ];
+
+  for (const [field, expected] of exactFilters) {
+    if (expected && candidate[field] && candidate[field] !== expected) {
+      return false;
+    }
+  }
+
+  const textFilters = [
+    ["sidoName", filters.sidoName],
+    ["wiwName", filters.wiwName],
+    ["sdName", filters.districtName],
+    ["partyName", filters.partyName],
+  ];
+
+  return textFilters.every(([field, expected]) => {
+    if (!expected || !candidate[field]) return true;
+    return candidate[field].includes(expected) || expected.includes(candidate[field]);
+  });
+}
+
 function buildDirectCandidate(options) {
   return {
     huboid: options.cnddtId,
+    sgId: options.sgId || "",
+    sgTypecode: options.sgTypecode || "",
     name: options.candidateName || "",
     partyName: options.partyName || "",
     sidoName: options.sidoName || "",
