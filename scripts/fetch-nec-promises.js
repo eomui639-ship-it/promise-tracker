@@ -262,8 +262,59 @@ function parseApiPayload(text) {
   try {
     return JSON.parse(text);
   } catch (error) {
-    throw new Error("JSON 응답을 해석하지 못했습니다. API가 XML을 반환했을 수 있습니다.");
+    if (text.trim().startsWith("<")) {
+      return parseXmlApiPayload(text);
+    }
+
+    throw new Error("API 응답을 해석하지 못했습니다. JSON 또는 XML 형식인지 확인해 주세요.");
   }
+}
+
+function parseXmlApiPayload(text) {
+  const headerXml = matchXmlBlock(text, "header");
+  const itemMatches = [...text.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((match) =>
+    parseFlatXmlFields(match[1]),
+  );
+
+  return {
+    response: {
+      header: parseFlatXmlFields(headerXml),
+      body: {
+        items: {
+          item: itemMatches,
+        },
+      },
+    },
+  };
+}
+
+function matchXmlBlock(text, tagName) {
+  const match = text.match(new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`));
+  return match ? match[1] : "";
+}
+
+function parseFlatXmlFields(xml) {
+  const fields = {};
+  const tagPattern = /<([A-Za-z][\w]*)>([\s\S]*?)<\/\1>/g;
+  let match;
+
+  while ((match = tagPattern.exec(xml)) !== null) {
+    const [, tagName, rawValue] = match;
+    if (rawValue.includes("<")) continue;
+    fields[tagName] = decodeXmlValue(rawValue.trim());
+  }
+
+  return fields;
+}
+
+function decodeXmlValue(value) {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function normalizeCandidate(item) {
@@ -334,7 +385,11 @@ function buildPromiseRows({
     promiseItems.forEach((promiseItem) => {
       for (let order = 1; order <= 10; order += 1) {
         const title = readApiField(promiseItem, [`prmsTitle${order}`]);
-        const content = readApiField(promiseItem, [`prmsCont${order}`]);
+        const content = readApiField(promiseItem, [
+          `prmsCont${order}`,
+          `prmmCont${order}`,
+          `prmsCn${order}`,
+        ]);
         const realm = readApiField(promiseItem, [`prmsRealmName${order}`]);
         const promiseOrder = readApiField(promiseItem, [`prmsOrd${order}`]) || String(order);
 
@@ -344,11 +399,11 @@ function buildPromiseRows({
           선거구분: electionName,
           선거종류코드: electionTypeCode,
           후보자ID: candidate.huboid,
-          후보자명: candidate.name,
-          정당명: candidate.partyName,
-          시도명: candidate.sidoName,
-          구시군명: candidate.wiwName,
-          선거구명: candidate.sdName,
+          후보자명: candidate.name || readApiField(promiseItem, ["krName", "name", "candidateName"]),
+          정당명: candidate.partyName || readApiField(promiseItem, ["partyName", "jdName"]),
+          시도명: candidate.sidoName || readApiField(promiseItem, ["sidoName", "sdName"]),
+          구시군명: candidate.wiwName || readApiField(promiseItem, ["wiwName"]),
+          선거구명: candidate.sdName || readApiField(promiseItem, ["sggName"]),
           공약순번: promiseOrder,
           공약분야: realm,
           공약명: title,
@@ -422,5 +477,6 @@ module.exports = {
   buildDirectCandidate,
   normalizeCandidate,
   normalizeItems,
+  parseApiPayload,
   toCsv,
 };
