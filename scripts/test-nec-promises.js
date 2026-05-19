@@ -6,6 +6,7 @@ const {
   buildDirectCandidate,
   normalizeCandidate,
   parseApiPayload,
+  readApiField,
 } = require("./fetch-nec-promises");
 
 function testBuildPromiseRows() {
@@ -169,11 +170,20 @@ function testParseXmlPromiseResponse() {
   assert.strictEqual(rows[0].공약내용, "공항 경쟁력 향상 및 강서구민 자긍심 고양");
 }
 
+function testReadApiFieldKeepsObjects() {
+  const items = { item: [{ a: 1 }] };
+  const value = readApiField({ response: { body: { items } } }, ["response.body.items"]);
+
+  assert.strictEqual(value, items);
+  assert.deepStrictEqual(normalizeItems(value), [{ a: 1 }]);
+}
+
 testBuildPromiseRows();
 testToCsvEscapesCommasAndQuotes();
 testNormalizeItems();
 testBuildDirectCandidate();
 testNormalizeCandidateFromSearchApi();
 testParseXmlPromiseResponse();
+testReadApiFieldKeepsObjects();
 
 console.log("NEC promise import tests passed");

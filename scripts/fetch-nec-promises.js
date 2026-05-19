@@ -440,7 +440,7 @@ function readApiField(source, paths) {
     }, source);
 
     if (value !== undefined && value !== null) {
-      return String(value).trim();
+      return typeof value === "string" ? value.trim() : value;
     }
   }
 
@@ -478,5 +478,6 @@ module.exports = {
   normalizeCandidate,
   normalizeItems,
   parseApiPayload,
+  readApiField,
   toCsv,
 };
